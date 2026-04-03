@@ -4,7 +4,7 @@ import sys
 # import mmsdk
 import pickle
 import torch
-import pprint 
+import pprint
 import numpy as np
 import torch.nn as nn
 
@@ -60,7 +60,7 @@ class MOSI():
             exit(0)
         else:
             sys.path.append(str(config.sdk_dir))
-        
+
         data_path = str(config.dataset_dir)
         cache_path = data_path + '/embedding_and_mapping.pt'
 
@@ -68,7 +68,7 @@ class MOSI():
             self.train = load_pickle(data_path + '/train.pkl')
             self.dev = load_pickle(data_path + '/dev.pkl')
             self.test = load_pickle(data_path + '/test.pkl')
-     
+
         except:
             print('error')
             pass
@@ -76,14 +76,14 @@ class MOSI():
     def get_data(self, is_train):
         if is_train:
             return self.train
-        else:              
+        else:
             return self.test
 
 
 class MSA(Dataset):
     def __init__(self, config, train=True):
         dataset = MOSI(config)
- 
+
         self.data = dataset.get_data(train)
         self.len = len(self.data)
 
@@ -95,19 +95,19 @@ class MSA(Dataset):
 
     def __len__(self):
         return self.len
-    
+
 
 
 class Config_MSA(object):
     def __init__(self,):
         project_dir = Path(__file__).resolve().parent.parent
-        sdk_dir = project_dir.joinpath('/home/hqyyqh888/SemanRes2/MSA/CMU-MultimodalSDK/')
+        sdk_dir = project_dir.joinpath('data/CMU-MultimodalSDK/')
         data_dir = project_dir.joinpath('data/msadata')
         data_dict = {'mosi': data_dir.joinpath('MOSI'), 'mosei': data_dir.joinpath(
             'MOSEI'), 'ur_funny': data_dir.joinpath('UR_FUNNY')}
-        word_emb_path = '/home/hqyyqh888/SemanRes2/MSA/MISA/glove/glove.840B.300d.txt'
+        word_emb_path = 'data/glove.840B.300d.txt'
         assert(word_emb_path is not None)
-        
+
         self.dataset_dir = data_dict['mosei']
         self.sdk_dir = sdk_dir
         self.word_emb_path = word_emb_path
