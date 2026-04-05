@@ -66,8 +66,8 @@ manual_map = { 'none': '0',
                'nine': '9',
               'ten': '10'}
 articles = ['a', 'an', 'the']
-period_strip = re.compile("(?!<=\d)(\.)(?!\d)")
-comma_strip = re.compile("(\d)(\,)(\d)")
+period_strip = re.compile(r"(?!<=\d)(\.)(?!\d)")
+comma_strip = re.compile(r"(\d)(\,)(\d)")
 punct = [';', r"/", '[', ']', '"', '{', '}',
                 '(', ')', '=', '+', '\\', '_', '-',
                 '>', '<', '@', '`', ',', '?', '!']
