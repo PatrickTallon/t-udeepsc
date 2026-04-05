@@ -11,7 +11,7 @@ import numpy as np
 import torch.distributed as dist
 
 from pathlib import Path
-from torch._six import inf
+from torch import inf
 import torch.nn.functional as F
 from timm.utils import get_state_dict
 from timm.models import create_model
@@ -77,11 +77,11 @@ def get_model(args):
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
     )
- 
-     
+
+
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('=> Number of params: {} M'.format(n_parameters / 1e6))
-    
+
     return model
 
 def load_checkpoint(model,args):
@@ -397,8 +397,8 @@ def tensor2cuda(tensor):
         tensor = tensor.cuda()
 
     return tensor
-    
-    
+
+
 def create_ds_config(args):
     args.deepspeed_config = os.path.join(args.output_dir, "deepspeed_config.json")
     with open(args.deepspeed_config, mode="w") as writer:
@@ -465,7 +465,7 @@ def get_imagenet_list(path):
         reader = csv.reader(csvfile)
         for row in reader:
             fns.append(row[0])
-    
+
     return fns
 
 def complex_sig(shape, device):
@@ -534,17 +534,17 @@ def tokens2sentence(outputs):
     for tokens in outputs:
         sentence = []
         for token in tokens:
-            
+
             word = tokenizer.decode([int(token)])
- 
+
             if word == '[PAD]':
                 break
             sentence.append(word)
         sentences.append(sentence)
-    return sentences  
- 
+    return sentences
+
 def computebleu(sentences, targets):
-  score = 0 
+  score = 0
   assert (len(sentences) == len(targets))
   def cut_token(sentence):
     tmp = []
@@ -553,14 +553,14 @@ def computebleu(sentences, targets):
         tmp.append(token)
       else:
         tmp += [word for word in token]
-    return tmp 
+    return tmp
 
   for sentence, target in zip(sentences, targets):
     sentence = cut_token(sentence)
-   
+
     target = cut_token(target)
 
-    score += sentence_bleu([target], sentence, weights=(1, 0, 0, 0))                                                                                          
+    score += sentence_bleu([target], sentence, weights=(1, 0, 0, 0))
   return score
 
 
@@ -578,7 +578,7 @@ def calc_metrics(y_true, y_pred, mode=None, to_print=True):
         :return: Classification accuracy
         """
         return np.sum(np.round(preds) == np.round(truths)) / float(len(truths))
-    
+
     test_preds = y_pred
     test_truth = y_true
 
@@ -593,7 +593,7 @@ def calc_metrics(y_true, y_pred, mode=None, to_print=True):
     corr = np.corrcoef(test_preds, test_truth)[0][1]
     mult_a7 = multiclass_acc(test_preds_a7, test_truth_a7)
     mult_a5 = multiclass_acc(test_preds_a5, test_truth_a5)
-    
+
     # f_score = f1_score((test_preds[non_zeros] > 0), (test_truth[non_zeros] > 0), average='weighted')
     # pos - neg
     binary_truth = (test_truth[non_zeros] > 0)
@@ -606,7 +606,7 @@ def calc_metrics(y_true, y_pred, mode=None, to_print=True):
         print("Classification Report (pos/neg) :")
         # print(classification_report(binary_truth, binary_preds, digits=5))
         print("Accuracy (pos/neg) ", accuracy_score(binary_truth, binary_preds))
-        
+
         # non-neg - neg
         binary_truth = (test_truth >= 0)
         binary_preds = (test_preds >= 0)
@@ -615,26 +615,26 @@ def calc_metrics(y_true, y_pred, mode=None, to_print=True):
             print("Classification Report (non-neg/neg) :")
             # print(classification_report(binary_truth, binary_preds, digits=5))
             print("Accuracy (non-neg/neg) ", accuracy_score(binary_truth, binary_preds))
-        
+
         return accuracy_score(binary_truth, binary_preds)
-    
-    
+
+
 class DiffPruningLoss(torch.nn.Module):
     def __init__(self, base_criterion: torch.nn.Module, dynamic=True, ratio_weight=2.0, main_weight=1.):
         super().__init__()
         self.base_criterion = base_criterion
         self.main_weight = 1.
         self.surp_weight = 0.022
-        self.rho_weight = 0.01    
-        self.vq_weight = 2.0    
+        self.rho_weight = 0.01
+        self.vq_weight = 2.0
         self.print_mode = True
-        
+
         self.count = 0
         self.main_loss_record = 0.
         self.surp_loss_record = 0.
         self.vq_loss_record = 0.
         self.keep_ratio_record = 0.
-        
+
         self.dynamic = dynamic
         if self.dynamic:
             print('using dynamic loss')
@@ -644,8 +644,8 @@ class DiffPruningLoss(torch.nn.Module):
         surp_loss = 0.0
         score = mask_m
         keep_ratio = score.mean(1)
-   
-        surp_loss = surp_loss + ((keep_ratio - rho) ** 2).mean()    ### The supervised loss. 
+
+        surp_loss = surp_loss + ((keep_ratio - rho) ** 2).mean()    ### The supervised loss.
         main_loss = self.base_criterion(pred, labels)              ### Reconstruction loss.
 
         loss = self.main_weight * main_loss + \
@@ -659,9 +659,9 @@ class DiffPruningLoss(torch.nn.Module):
             self.keep_ratio_record += keep_ratio.mean().item()
             self.count += 1
             if self.count == 100:
-                print('loss info: main_loss=%.4f, surp_loss=%.4f, vq_loss=%.4f, keep ratio=%.4f' 
-                        % (self.main_loss_record / self.count, 
-                           self.surp_loss_record / self.count, 
+                print('loss info: main_loss=%.4f, surp_loss=%.4f, vq_loss=%.4f, keep ratio=%.4f'
+                        % (self.main_loss_record / self.count,
+                           self.surp_loss_record / self.count,
                            self.vq_loss_record / self.count,
                            self.keep_ratio_record / self.count))
                 self.main_loss_record = 0
