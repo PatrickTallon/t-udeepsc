@@ -3,11 +3,11 @@ import numpy as np
 import time
 import torch
 import utils
-import model   
+import model
 import torch.backends.cudnn as cudnn
 
 from engine import *
-from pathlib import Path 
+from pathlib import Path
 from base_args import get_args
 from optim_factory import create_optimizer
 from utils import NativeScalerWithGradNormCount as NativeScaler
@@ -34,22 +34,20 @@ def main(args):
     if args.resume:
         print(args.resume)
         checkpoint_model = load_checkpoint(model, args)
-        
+
         utils.load_state_dict(model, checkpoint_model, prefix=args.model_prefix)
 
-        
+
     model.to(device)
     model_without_ddp = model
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
-        model_without_ddp = model.module  
-    
+        model_without_ddp = model.module
+
     print("------------------------------------------------------")
     ############## Get the data and dataloader
-    
-    # ta_sel = ['textr','textc']
-    ta_sel = ['msa', 'textr']
-    # ta_sel = ['imgr']
+
+    ta_sel = [args.ta_perform]
     trainset_group = build_dataset_train(is_train=True, ta_sel=ta_sel, args=args)
     trainloader_group= build_dataloader(ta_sel,trainset_group, args=args)
 
@@ -62,13 +60,13 @@ def main(args):
         valset = None
 
     if valset is not None:
-        Collate_fn = collate_fn if args.ta_perform.startswith('msa') else None 
+        Collate_fn = collate_fn if args.ta_perform.startswith('msa') else None
         dataloader_val = torch.utils.data.DataLoader(
             valset, sampler=sampler_val, batch_size=int(1.0 * args.batch_size),
             num_workers=args.num_workers, pin_memory=args.pin_mem, drop_last=False, collate_fn=Collate_fn)
     else:
         dataloader_val = None
-    
+
     ############################# Get the optimizer and the other training settings
     total_batch_size = args.batch_size * args.update_freq * utils.get_world_size()
     num_training_steps_per_epoch = args.num_samples // total_batch_size
@@ -86,18 +84,18 @@ def main(args):
     wd_schedule_values = utils.cosine_scheduler(
         args.weight_decay, args.weight_decay_end, args.epochs, num_training_steps_per_epoch)
     print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
-    
-    
+
+
     ###################################################### Get the criterion
     criterion_train = sel_criterion_train(args,ta_sel, device)
     criterion_test = sel_criterion_test(args, device)
-    
+
     ################################## Auto load the model in the model record folder
     if args.eval:
-        
+
         if args.ta_perform.startswith('img') or args.ta_perform.startswith('text'):
-            test_stats = evaluate(ta_perform=args.ta_perform, 
-                                net=model, dataloader=dataloader_val, 
+            test_stats = evaluate(ta_perform=args.ta_perform,
+                                net=model, dataloader=dataloader_val,
                                 device=device, criterion=criterion_test)
             if args.ta_perform.startswith('imgc') or args.ta_perform.startswith('textc'):
                 print(f"Accuracy of the network on the {len(valset)} test samples: {test_stats['acc']*100:.3f}")
@@ -106,14 +104,14 @@ def main(args):
             elif args.ta_perform.startswith('textr'):
                 print(f"Average BLEU on the {len(valset)} test samples: {test_stats['bleu']:.3f}")
         elif args.ta_perform.startswith('msa'):
-            test_stats = evaluate_msa(ta_perform=args.ta_perform, 
-                                net=model, dataloader=dataloader_val, 
+            test_stats = evaluate_msa(ta_perform=args.ta_perform,
+                                net=model, dataloader=dataloader_val,
                                 device=device, criterion=criterion_test)
             print(f"Accuracy of the network on the {len(valset)} test samples: {test_stats['acc']*100:.3f}")
-        
+
         elif args.ta_perform.startswith('vqa'):
-            test_stats = evaluate_vqa(ta_perform=args.ta_perform, 
-                                net=model, dataloader=dataloader_val, 
+            test_stats = evaluate_vqa(ta_perform=args.ta_perform,
+                                net=model, dataloader=dataloader_val,
                                 device=device, criterion=criterion_test)
             print("Overall Accuracy is: %.02f" % (test_stats['overall']))
             print("Per Answer Type Accuracy is the following:")
@@ -131,12 +129,12 @@ def main(args):
                 trainloader.sampler.set_epoch(epoch)
 
         train_stats = train_epoch_uni(
-                model, criterion_train, trainloader_group, optimizer, device, epoch, loss_scaler, 
+                model, criterion_train, trainloader_group, optimizer, device, epoch, loss_scaler,
                 ta_sel, args.clip_grad,  start_steps=epoch * num_training_steps_per_epoch,
-                lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values, 
+                lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values,
                 update_freq=args.update_freq)
-   
-        
+
+
         inter_time = time.time() - start_time
         inter_time_str = str(datetime.timedelta(seconds=int(inter_time)))
         print('Training time {}'.format(inter_time_str))
@@ -149,16 +147,16 @@ def main(args):
         if dataloader_val is not None:
             print(args.output_dir)
             if args.ta_perform.startswith('img') or args.ta_perform.startswith('text'):
-                test_stats = evaluate(ta_perform=args.ta_perform, 
-                                    net=model, dataloader=dataloader_val, 
+                test_stats = evaluate(ta_perform=args.ta_perform,
+                                    net=model, dataloader=dataloader_val,
                                     device=device, criterion=criterion_test)
             elif args.ta_perform.startswith('vqa'):
-                test_stats = evaluate_vqa(ta_perform=args.ta_perform, 
-                                    net=model, dataloader=dataloader_val, 
+                test_stats = evaluate_vqa(ta_perform=args.ta_perform,
+                                    net=model, dataloader=dataloader_val,
                                     device=device, criterion=criterion_test)
             else:
-                test_stats = evaluate_msa(ta_perform=args.ta_perform, 
-                                    net=model, dataloader=dataloader_val, 
+                test_stats = evaluate_msa(ta_perform=args.ta_perform,
+                                    net=model, dataloader=dataloader_val,
                                     device=device, criterion=criterion_test)
             if args.ta_perform.startswith('imgc') or args.ta_perform.startswith('textc'):
                 print(f"Accuracy of the network on the {len(valset)} test images: {test_stats['acc']*100:.3f}")
@@ -173,7 +171,7 @@ def main(args):
                 print("Per Answer Type Accuracy is the following:")
                 for ansType in test_stats['perAnswerType']:
                     print("%s : %.02f" % (ansType, test_stats['perAnswerType'][ansType]))
-       
+
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
